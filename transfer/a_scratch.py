@@ -148,7 +148,7 @@ def get_sound(sound_pressure, fs, omega=OMEGA):
     
     # save to wav
     from scipy.io.wavfile import write
-    write('./transfer/result/result.wav', fs, samples)
+    write('./result/result.wav', fs, samples)
     return samples
     
 # def save_sound(samples):
