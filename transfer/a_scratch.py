@@ -1,5 +1,6 @@
 
 from asyncio import streams
+from os import path
 from time import time
 from tkinter import N
 from webbrowser import get
@@ -126,7 +127,7 @@ sound_pressure = sound_pressure(3, p, x, u_mul=u_mul)
 print("sound pressure:", sound_pressure)
 
 import pyaudio
-duration = 1          # time period for sound play, in seconds 
+duration = 3          # time period for sound play, in seconds 
 fs = 44100              # sampling rate for a sound in Hz                
 def get_sound(sound_pressure, fs, omega=OMEGA):
     ## sound = sound_pressure(x) * q(t)
