@@ -12,8 +12,14 @@ RHO = 1.2041    # density of air in kg/m^3, for compute the boundary condition
 OMEGA = 2763       # specified frequence in Hz, will be a constant if modal specified 
 c = 340         # in m/s velocity of sound in the air, 
 
-
-# function1:
+## N: 边界条件离散化的数量
+## 
+# class Dipole:
+#     def __init__(self, location, coefficience):
+#         self.location=location                  ## [x, y, z]表示位置
+#         self.coefficience=coefficience          ## 需要4个系数表征multipole的系数
+    
+# function1:  
 # construct_rhs: 
 #       construct the Right Hand Side of linear_sys, we need 
 # u_sam_l:
@@ -24,6 +30,7 @@ c = 340         # in m/s velocity of sound in the air,
 #       the normal vector of the surface surronding the l-th particle 
 # omega:
 #       the frequency of the specified modal.
+
 def construct_rhs(u_sam_l, u_sam_0, n_x, omega=OMEGA):
     d_sam = u_sam_l - u_sam_0
     a = (d_sam * n_x).sum(axis=1) 
