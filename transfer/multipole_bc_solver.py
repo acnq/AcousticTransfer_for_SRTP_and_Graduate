@@ -60,6 +60,7 @@ def get_boundary_normal_vector_series(file)->Any:
 def  get_multipole_location(file)->Any:
     'This function should read in the location of M multipole'
     
+    
 def construct_rhs(normal_vector, modal_displacement)-> Any:
     "construct right hand side"
     "This function takes in normal_vector and modal_displacement"
