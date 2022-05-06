@@ -1,248 +1,162 @@
-from cmath import pi
-from msilib.schema import Directory
-import numpy as np
-from numpy.linalg import *
+from tkinter import *
+from tkinter import messagebox
+from tkinter import filedialog
 import os
-import time
+from ModalAnalysis import *
 
-def getXYZ_list(point):
-    # point: [0,0,0] list
-    x = point[0]
-    y = point[1]
-    z = point[2]
-    return x, y, z
+_file_model = ''
+_dir_output = ''
+ma_ins = ModalAnalysis()
 
 
-def calDet6(a2, a3, b2, b3, c2, c3):
-    mat = np.array([[1, a2, a3], [1, b2, b3], [1, c2, c3]])
-    return det(mat)
+def modal_ana():
+    # args pre process
+    material_path = './material/material-{}.cfg'.format(val_material.get())
+    fixed_vtx = [i for i in range(int(val_fixnum.get()))]
+
+    print('[ INFO] vtk file path', _file_model)
+    print('[ INFO] material', material_path)
+    print('[ INFO] output path', _dir_output)
+    print('[ INFO] fix vtx num', val_fixnum.get())
+
+    global ma_ins
+    ma_ins.setVtkFile(_file_model)
+    ma_ins.setMaterial(material_path)
+    ma_ins.setOutputPath(_dir_output)
+    ma_ins.setFixedVtx(fixed_vtx)
+
+    ma_ins.constructM_ori()
+    ma_ins.constructK_ori()
+    ma_ins.getM_fix()
+    ma_ins.getK_fix()
+    ma_ins.eignDecom()
+
+    messagebox.showinfo("Message title", "模态分析成功")
 
 
-def getBetaGammaDelta(ele_points):
-    x1, y1, z1 = getXYZ_list(ele_points[0])
-    x2, y2, z2 = getXYZ_list(ele_points[1])
-    x3, y3, z3 = getXYZ_list(ele_points[2])
-    x4, y4, z4 = getXYZ_list(ele_points[3])
+def generate_sound():
+    print('[ INFO] contact point', val_cpoint.get())
+    print('[ INFO] force x: ', val_forcex.get())
+    print('[ INFO] force y: ', val_forcey.get())
+    print('[ INFO] force z: ', val_forcez.get())
 
-    beta_list = [0, 0, 0, 0]
-    gamma_list = [0, 0, 0, 0]
-    delta_list = [0, 0, 0, 0]
+    global ma_ins
+    ma_ins.setOutputPath(_dir_output)
+    ma_ins.setDuration(3.0)
+    ma_ins.setSampRate(44100)
+    ma_ins.setForce(int(val_cpoint.get()), float(val_forcex.get()), float(val_forcey.get()), float(val_forcez.get()))
+    ma_ins.genSound()
 
-    beta_list[0] = -calDet6(y2, z2, y3, z3, y4, z4)
-    beta_list[1] =  calDet6(y1, z1, y3, z3, y4, z4)
-    beta_list[2] = -calDet6(y1, z1, y2, z2, y4, z4)
-    beta_list[3] =  calDet6(y1, z1, y2, z2, y3, z3)
+    messagebox.showinfo("Message title", "声音生成成功")
 
-    gamma_list[0] =  calDet6(x2, z2, x3, z3, x4, z4)
-    gamma_list[1] = -calDet6(x1, z1, x3, z3, x4, z4)
-    gamma_list[2] =  calDet6(x1, z1, x2, z2, x4, z4)
-    gamma_list[3] = -calDet6(x1, z1, x2, z2, x3, z3)
+# def play_sound():
+#     global ma_ins
+#     ma_ins.playSound()
 
-    delta_list[0] = -calDet6(x2, y2, x3, y3, x4, y4)
-    delta_list[1] =  calDet6(x1, y1, x3, y3, x4, y4)
-    delta_list[2] = -calDet6(x1, y1, x2, y2, x4, y4)
-    delta_list[3] =  calDet6(x1, y1, x2, y2, x3, y3)
+def save_data():
+    global ma_ins
+    ma_ins.saveAllData()
+    ma_ins.saveSound()
+    # ma_ins.saveEachMode()
 
-    return beta_list, gamma_list, delta_list
-
-
-def getSignedTetVolume(ele_points):
-    point0 = np.resize(ele_points[0], (3, 1))
-    point1 = np.resize(ele_points[1], (3, 1))
-    point2 = np.resize(ele_points[2], (3, 1))
-    point3 = np.resize(ele_points[3], (3, 1))
-    Dm = np.hstack((point0 - point3, point1 - point3, point2 - point3))
-    volume = det(Dm) / 6
-    return volume
-
-
-def getBSubMatrix(beta, gamma, delta):
-    b1 = np.array([beta, 0, 0])
-    b2 = np.array([0, gamma, 0])
-    b3 = np.array([0, 0, delta])
-    b4 = np.array([gamma, beta, 0])
-    b5 = np.array([0, delta, gamma])
-    b6 = np.array([delta, 0, beta])
-    b = np.array([b1, b2, b3, b4, b5, b6])
-    return b
-
-
-def getBMatrix(beta_list, gamma_list, delta_list):
-    B0 = getBSubMatrix(beta_list[0], gamma_list[0], delta_list[0])
-    B1 = getBSubMatrix(beta_list[1], gamma_list[1], delta_list[1])
-    B2 = getBSubMatrix(beta_list[2], gamma_list[2], delta_list[2])
-    B3 = getBSubMatrix(beta_list[3], gamma_list[3], delta_list[3])
-    B = np.hstack((B0, B1, B2, B3))
-    return B
-
-
-def getDMatrix(young, poisson):
-    q_ = young / (1 + poisson) / (1 - 2 * poisson)
-    r_ = 1 - poisson
-    s_ = (1 - 2 * poisson) / 2
-    D1 = np.array([[r_, poisson, poisson],
-                   [poisson, r_, poisson],
-                   [poisson, poisson, r_],
-                   [0, 0, 0],
-                   [0, 0, 0],
-                   [0, 0, 0]])
-    I63 = np.array([[0, 0, 0],
-                    [0, 0, 0],
-                    [0, 0, 0],
-                    [1, 0, 0],
-                    [0, 1, 0],
-                    [0, 0, 1]])
-    D2 = s_ * I63
-    D = np.hstack((D1, D2))
-    D = D * q_
-    return D
-
-
-def getElementStiffness(ele_points, young, poisson):
-    beta_list, gamma_list, delta_list = getBetaGammaDelta(ele_points)
-    volumn = abs(getSignedTetVolume(ele_points))
-    B = getBMatrix(beta_list, gamma_list, delta_list)
-    D = getDMatrix(young, poisson)
-    k = B.T.dot(D).dot(B) * volumn
-    return k
-
-
-# mass: mass of the tet
-def getElementMass():
-    m = np.zeros((12, 12))
-    I3 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    for i in range(4):
-        for j in range(4):
-            if i == j:
-                m[3*i:3*i+3, 3*j:3*j+3] = 2 * I3
-            else:
-                m[3*i:3*i+3, 3*j:3*j+3] = I3
-    m = m / 20
-    return m
-
-
-# matrix: 12*12 expand to global size
-# idx: the global index of vertices in the element matrix
-def element2Global(matrix, n_vtx, idx):
-    M = np.zeros((3 * n_vtx, 3 * n_vtx))
-    for i in range(4):
-        for j in range(4):
-            for k in range(3):
-                for l in range(3):
-                    I = idx[i]
-                    J = idx[j]
-                    M[3*I+k][3*J+l] = matrix[3*i+k][3*j+l]
-    return M
-
-
-def getMeshInfo_vtk(filename):
-    import meshio
-    mesh = meshio.read(filename)
-    mesh_points = mesh.points.tolist()
-    mesh_elements = mesh.cells[0].data.tolist()
-    return mesh_points, mesh_elements
-
-from configparser import ConfigParser
-from scipy.linalg import eigh
-class ModalAnalysis:
-    # vtk_filepath = "./model/cube.vtk"
-    # mesh_points = []
-    # mesh_elements = []
-    # num_vtx = 0
-    # material
-    #   young
-    #   poisson
-    #   density
-    #   alpha
-    #   beta
-    # M
-    # K
-    # evals
-    # evecs
-
-    def __init__(self, vtk_file, material_file, output_path) -> None:
-        if( os.path.exists(output_path) ):
-            output_path = output_path + '-' + str(int(time.time()))
-        self.output_path = output_path
-
-
-        self.vtk_filepath = vtk_file
-        self.mesh_points, self.mesh_elements = getMeshInfo_vtk(self.vtk_filepath)
-        self.num_vtx = len(self.mesh_points)
-
-        cp = ConfigParser()
-        cp.read(material_file, 'utf-8')
-        self.material = {}
-        for key in cp['DEFAULT']:
-            self.material[key] = float(cp['DEFAULT'][key])
-        # test begins ###
-        for key in self.material:
-            print(self.material[key])
-        # test ends #####
-        
-        self.constructMK()
-        self.eignDecom()
-
-    def constructMK(self):
-        M_ori = np.zeros((3 * self.num_vtx, 3 * self.num_vtx))
-        K_ori = np.zeros((3 * self.num_vtx, 3 * self.num_vtx))
-
-        m = getElementMass()
-        for i, ele_pts_idx in enumerate(self.mesh_elements):
-            ele_pts_pos = [self.mesh_points[ele_pts_idx[p]] for p in range(4)]
-            volume = abs(getSignedTetVolume(ele_pts_pos))
-            M_i = element2Global(m * self.material['density'] * volume, self.num_vtx, ele_pts_idx)
-            k_i = getElementStiffness(ele_pts_pos, self.material['young'], self.material['poisson'])
-            K_i = element2Global(k_i, self.num_vtx, ele_pts_idx)
-            M_ori += M_i
-            K_ori += K_i
-
-        self.M = M_ori
-        self.K = K_ori
-
-    def eignDecom(self):
-        # generalized eigenvalue decomposition
-        self.evals, self.evecs = eigh(self.K, self.M)
-        # omega = np.sqrt(evals)
-
-    def printToFile(self):
-        if( not os.path.exists(self.output_path) ):
-            os.mkdir(self.output_path)
-        
-        print('[ DEBUG] The output dir is ' + self.output_path)
-
-        f = open(os.path.join(self.output_path, "print.txt"), 'wt')
-
-        print("\n# of vtx", file=f)
-        print(self.num_vtx, file=f)
-
-        # print("\nMass Matrix", file=f)
-        # print(self.M, file=f)
-
-        # print("\nStiffness Matrix", file=f)
-        # print(self.K, file=f)
-
-        # print("\nEigen values", file=f)
-        # print(self.evals, file=f)
-
-        print("\nfreq", file=f)
-        print(np.sqrt(self.evals) / 2 / pi, file=f)
-
-        # print("\nEigen vectors", file=f)
-        # print(self.evecs, file=f)
+    messagebox.showinfo("Message title", "保存数据成功")
     
-    def saveData(self):
-        if( not os.path.exists(self.output_path) ):
-            os.mkdir(self.output_path)
 
-        print('[ DEBUG] The output dir is' + self.output_path)
-
-        np.savetxt( os.path.join(self.output_path, "mass.txt"), self.M)
-        np.savetxt( os.path.join(self.output_path, "stiff.txt"), self.K)
-        np.savetxt( os.path.join(self.output_path, "evals.txt"), self.evals)
-        np.savetxt( os.path.join(self.output_path, "evecs.txt"), self.evecs)
+root = Tk()
+root.title('Modal Analysis demo')
+root.geometry('300x300')
 
 
-ma_instance = ModalAnalysis('./model/cube.vtk', './material/material-0.cfg', './output/cube-0')
-ma_instance.printToFile()
-ma_instance.saveData()
+# num of fixed vertex
+lb_fixnum = Label(root, text='固定点数目：')
+lb_fixnum.grid(column=0, row=0)
+
+def_fixnum = IntVar()
+def_fixnum.set(0)
+val_fixnum = Entry(root, width=5, textvariable=def_fixnum)
+val_fixnum.grid(column=1, row=0)
+
+# contact point index
+lb_cpoint = Label(root, text='外力作用节点下标：')
+lb_cpoint.grid(column=0, row=1)
+
+def_cpoint = IntVar()
+def_cpoint.set(3)
+val_cpoint = Entry(root, width=5, textvariable=def_cpoint)
+val_cpoint.grid(column=1, row=1)
+
+
+# force x y z
+lb_force = Label(root, text='外力大小：')
+lb_force.grid(column=0, row=2)
+
+def_forcex = DoubleVar()
+def_forcex.set(0.5)
+def_forcey = DoubleVar()
+def_forcey.set(0.3)
+def_forcez = DoubleVar()
+def_forcez.set(0.8)
+
+val_forcex = Entry(root, width=5, textvariable=def_forcex)
+val_forcex.grid(column=1, row=2)
+val_forcey = Entry(root, width=5, textvariable=def_forcey)
+val_forcey.grid(column=2, row=2)
+val_forcez = Entry(root, width=5, textvariable=def_forcez)
+val_forcez.grid(column=3, row=2)
+
+# material num
+lb_material = Label(root, text='材料编号：')
+lb_material.grid(column=0, row=3)
+
+val_material = Spinbox(root, from_=0, to=7, width=3)
+val_material.grid(column=1, row=3)
+
+# model path
+def select_model():
+    file_model = filedialog.askopenfilename(initialdir=os.path.dirname(__file__))
+    if (file_model != ''):
+        model_base = '.../' + os.path.basename(file_model)
+        lb_model.configure(text=model_base)
+    global _file_model
+    _file_model = file_model
+
+btn_model = Button(root, text="选择vtk模型", command=select_model)
+btn_model.grid(column=0, row=4)
+
+lb_model = Label(root, text='未选择')
+lb_model.grid(column=1, row=4)
+
+# output path
+def select_output():
+    dir_output = filedialog.askdirectory(initialdir=os.path.dirname(__file__))
+    if (dir_output != ''):
+        dir_base = '.../' + os.path.basename(dir_output)
+        lb_output.configure(text=dir_base)
+    global _dir_output
+    _dir_output = dir_output
+
+btn_output = Button(root, text="选择输出路径", command=select_output)
+btn_output.grid(column=0, row=5)
+
+lb_output = Label(root, text='未选择')
+lb_output.grid(column=1, row=5)
+
+# ModalAnalysis btn
+btn_output = Button(root, text="执行模态分析", command=modal_ana)
+btn_output.grid(column=0, row=6)
+
+# Generate sound btn
+btn_generate = Button(root, text="生成声音", command=generate_sound)
+btn_generate.grid(column=0, row=7)
+
+# # Playsound btn
+# btn_play = Button(root, text="播放声音", command=play_sound)
+# btn_play.grid(column=1, row=8)
+
+# save btn
+btn_save = Button(root, text="保存数据", command=save_data)
+btn_save.grid(column=0, row=8)
+
+
+root.mainloop()
+
