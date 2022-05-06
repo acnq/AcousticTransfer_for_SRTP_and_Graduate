@@ -1,0 +1,12 @@
+[ INFO] packing test...
+[ INFO] modes_each_pack =  7
+[ INFO] modes_left =  5
+[ INFO] offset =  3
+new modes [0] = old evals [6]
+new modes [1] = old evals [13]
+new modes [2] = old evals [20]
+new modes [3] = old evals [27]
+new modes [4] = old evals [34]
+new modes [5] = old evals [41]
+new modes [6] = old evals [48]
+new modes [7] = old evals [55]

@@ -1,0 +1,1 @@
+parameters: -81.51usec, 0.199dB.Corr Depth: 1.8 dB
